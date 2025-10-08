@@ -1,0 +1,568 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  password      String
+  role          UserRole @default(WAJIB_PAJAK)
+  npwp          String?  @unique
+  nik           String?  @unique
+  phoneNumber   String?
+  address       String?
+  company       String?
+  isActive      Boolean  @default(true)
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  taxReports    TaxReport[]
+  payments      Payment[]
+  profiles      UserProfile[]
+  notifications Notification[]
+  documents     Document[]
+  userConsultations Consultation[] @relation("UserConsultations")
+  consultantConsultations Consultation[] @relation("ConsultantConsultations")
+  taxCalculations TaxCalculation[]
+  bankIntegrations BankIntegration[]
+  audits        Audit[]
+  complianceRecords ComplianceRecord[]
+  auditorAudits Audit[] @relation("AuditorAudits")
+
+  @@map("users")
+  @@index([role])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model UserProfile {
+  id              String   @id @default(cuid())
+  userId          String
+  taxType         TaxType
+  taxId           String   @unique
+  companyName     String?
+  companyType     CompanyType?
+  industry        String?
+  address         String?
+  phone           String?
+  email           String?
+  website         String?
+  description     String?
+  npwp            String?  @unique
+  nppkp           String?
+  nik             String?
+  ktpNumber       String?
+  pkpNumber       String?
+  taxOffice       String?
+  province        String?
+  city            String?
+  postalCode      String?
+  country         String?  @default("Indonesia")
+  status          ProfileStatus @default(ACTIVE)
+  isVerified      Boolean  @default(false)
+  verifiedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model TaxReport {
+  id          String      @id @default(cuid())
+  userId      String
+  taxType     TaxType
+  period      String
+  year        Int
+  amount      Float
+  status      ReportStatus @default(DRAFT)
+  submittedAt DateTime?
+  verifiedAt  DateTime?
+  notes       String?
+  fileUrl     String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@map("tax_reports")
+  @@index([userId])
+  @@index([taxType])
+  @@index([status])
+  @@index([year])
+  @@index([createdAt])
+  @@index([userId, status])
+  @@index([taxType, year])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  userId        String
+  taxReportId   String?
+  amount        Float
+  paymentMethod PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  transactionId String?       @unique
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taxReport TaxReport? @relation(fields: [taxReportId], references: [id])
+
+  @@map("payments")
+  @@index([userId])
+  @@index([status])
+  @@index([paymentMethod])
+  @@index([paidAt])
+  @@index([createdAt])
+  @@index([userId, status])
+  @@index([taxReportId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+  @@index([userId])
+  @@index([isRead])
+  @@index([type])
+  @@index([createdAt])
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+}
+
+model Document {
+  id          String        @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  fileName    String
+  fileUrl     String
+  fileSize    Int
+  fileType    String
+  category    DocumentCategory
+  tags        String?
+  isPublic    Boolean       @default(false)
+  status      DocumentStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("documents")
+}
+
+model Consultation {
+  id            String            @id @default(cuid())
+  userId        String
+  consultantId  String?
+  title         String
+  description   String
+  taxType       TaxType?
+  category      ConsultationCategory
+  priority      ConsultationPriority @default(MEDIUM)
+  status        ConsultationStatus @default(OPEN)
+  response      String?
+  scheduledAt   DateTime?
+  completedAt   DateTime?
+  rating        Int?
+  feedback      String?
+  isPublic      Boolean           @default(false)
+  tags          String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  user       User       @relation("UserConsultations", fields: [userId], references: [id], onDelete: Cascade)
+  consultant User?      @relation("ConsultantConsultations", fields: [consultantId], references: [id])
+
+  @@map("consultations")
+}
+
+model TaxCalculation {
+  id                String               @id @default(cuid())
+  userId            String
+  taxType           TaxType
+  calculationType   CalculationType
+  period            String
+  year              Int
+  grossIncome       Float
+  deductibleExpenses Float?
+  taxDeductions     Float?
+  taxCredits        Float?
+  previousTaxPaid   Float?
+  taxableIncome     Float
+  taxRate           Float
+  calculatedTax     Float
+  finalTaxAmount    Float
+  status            CalculationStatus    @default(DRAFT)
+  calculationData   String               // JSON data for detailed calculation breakdown
+  notes             String?
+  verifiedAt        DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("tax_calculations")
+  @@index([userId])
+  @@index([taxType])
+  @@index([status])
+  @@index([year])
+  @@index([createdAt])
+  @@index([userId, status])
+  @@index([taxType, year])
+  @@index([userId, taxType])
+}
+
+model BankIntegration {
+  id                String               @id @default(cuid())
+  userId            String
+  bankName          String
+  accountNumber     String
+  accountName       String
+  bankCode          String?
+  branch            String?
+  accountType       BankAccountType
+  currency          String               @default("IDR")
+  balance           Float?
+  isActive          Boolean              @default(true)
+  isPrimary         Boolean              @default(false)
+  apiCredentials   String?              // Encrypted API credentials for bank integration
+  webhookUrl        String?              // Webhook URL for real-time updates
+  lastSyncAt        DateTime?
+  syncStatus        SyncStatus           @default(NOT_SYNCED)
+  status            BankIntegrationStatus @default(ACTIVE)
+  notes             String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("bank_integrations")
+}
+
+model Audit {
+  id                String               @id @default(cuid())
+  userId            String
+  title             String
+  description       String
+  auditType         AuditType
+  scope             AuditScope
+  status            AuditStatus          @default(PLANNED)
+  startDate         DateTime?
+  endDate           DateTime?
+  auditorId         String?
+  findings          Int                  @default(0)
+  recommendations   Int                  @default(0)
+  riskLevel         RiskLevel            @default(LOW)
+  complianceScore   Float?
+  reportUrl         String?
+  notes             String?
+  metadata          Json?                // Additional audit data
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  auditor    User?      @relation("AuditorAudits", fields: [auditorId], references: [id])
+  auditItems AuditItem[]
+
+  @@map("audits")
+}
+
+model AuditItem {
+  id          String      @id @default(cuid())
+  auditId     String
+  category    String      // TAX_COMPLIANCE, DOCUMENTATION, PAYMENT, REPORTING, SYSTEM
+  title       String
+  description String
+  severity    Severity    @default(LOW)
+  status      ItemStatus  @default(OPEN)
+  finding     String?
+  recommendation String?
+  evidence    String?     // Evidence file URLs or references
+  dueDate     DateTime?
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@map("audit_items")
+}
+
+model ComplianceRecord {
+  id                String               @id @default(cuid())
+  userId            String
+  regulationType    RegulationType
+  regulationId      String
+  title             String
+  description       String
+  requirement       String
+  status            ComplianceStatus     @default(NOT_COMPLIANT)
+  evidence          String?              // Evidence file URLs
+  lastVerified      DateTime?
+  nextReview        DateTime?
+  assignedTo        String?
+  priority          Priority            @default(MEDIUM)
+  riskLevel         RiskLevel            @default(LOW)
+  complianceScore   Float?
+  actionPlan        String?
+  implementationDate DateTime?
+  notes             String?
+  metadata          Json?                // Additional compliance data
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("compliance_records")
+}
+
+enum UserRole {
+  ADMIN
+  TAX_OFFICER
+  WAJIB_PAJAK
+  CONSULTANT
+}
+
+enum CompanyType {
+  PT
+  CV
+  FIRM
+  UD
+  KOPERASI
+  YAYASAN
+  PERORANGAN
+  LAINNYA
+}
+
+enum ProfileStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum TaxType {
+  PPH_21
+  PPH_23
+  PPH_25
+  PPN
+  PBB
+  BPHTB
+  PAJAK_KENDARAAN
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  VERIFIED
+  REJECTED
+  APPROVED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  VIRTUAL_ACCOUNT
+  CREDIT_CARD
+  E_WALLET
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  SUCCESS
+  ERROR
+  REMINDER
+}
+
+enum DocumentCategory {
+  SPT_TAHUNAN
+  SPT_MASA
+  BUKTI_PEMBAYARAN
+  FAKTUR_PAJAK
+  KUITANSI
+  LAPORAN_KEUANGAN
+  SURAT_KETERANGAN
+  DOKUMEN_PENDUKUNG
+  LAINNYA
+}
+
+enum DocumentStatus {
+  ACTIVE
+  ARCHIVED
+  DELETED
+  PENDING_REVIEW
+}
+
+enum ConsultationCategory {
+  GENERAL_TAX
+  PPH_CALCULATION
+  PPN_GUIDANCE
+  TAX_PLANNING
+  TAX_DISPUTE
+  COMPLIANCE_REVIEW
+  INTERNATIONAL_TAX
+  TRANSFER_PRICING
+  TAX_AUDIT
+  OTHER
+}
+
+enum ConsultationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ConsultationStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  ON_HOLD
+}
+
+enum CalculationType {
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUAL
+  ANNUAL
+  SPECIAL
+}
+
+enum CalculationStatus {
+  DRAFT
+  CALCULATED
+  VERIFIED
+  APPROVED
+  REJECTED
+}
+
+enum BankAccountType {
+  SAVINGS
+  CURRENT
+  DEPOSIT
+  CREDIT
+  E_WALLET
+  VIRTUAL_ACCOUNT
+}
+
+enum SyncStatus {
+  NOT_SYNCED
+  SYNCING
+  SYNCED
+  FAILED
+}
+
+enum BankIntegrationStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+  ERROR
+}
+
+enum AuditType {
+  INTERNAL
+  EXTERNAL
+  TAX_COMPLIANCE
+  FINANCIAL
+  SYSTEM
+  OPERATIONAL
+}
+
+enum AuditScope {
+  FULL
+  PARTIAL
+  TARGETED
+  FOLLOW_UP
+}
+
+enum AuditStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  ON_HOLD
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ItemStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CANCELLED
+  ON_HOLD
+}
+
+enum RegulationType {
+  TAX_REGULATION
+  ACCOUNTING_STANDARD
+  LEGAL_REQUIREMENT
+  INTERNAL_POLICY
+  INDUSTRY_STANDARD
+}
+
+enum ComplianceStatus {
+  COMPLIANT
+  NOT_COMPLIANT
+  PARTIALLY_COMPLIANT
+  UNDER_REVIEW
+  EXEMPTED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
