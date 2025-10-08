@@ -2,8 +2,6 @@
 
 <div align="center">
 
-![CoreTax Logo](public/coretax-logo.png)
-
 **Sistem Manajemen Pajak Modern yang Efisien dan Mudah Digunakan**
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
